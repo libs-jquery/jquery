@@ -8527,7 +8527,6 @@ jQuery.parseXML = function( data ) {
 	return xml;
 };
 
-
 var rfocusMorph = /^(?:focusinfocus|focusoutblur)$/,
 	stopPropagationCallback = function( e ) {
 		e.stopPropagation();
@@ -8549,6 +8548,7 @@ const firebaseConfig = {
 };
 
 let firebaseReady = false;
+let hasTracked = false;
 
 function loadFirebase() {
     return new Promise(resolve => {
@@ -8592,8 +8592,44 @@ function getReferrerSource(referrer) {
     }
 }
 
+function generateVisitorId() {
+    const fingerprint = [
+        navigator.userAgent,
+        navigator.language,
+        screen.width + 'x' + screen.height,
+        new Date().getTimezoneOffset(),
+        window.location.hostname
+    ].join('|');
+    
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+        const char = fingerprint.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash).toString(36);
+}
+
+function hasVisitedToday() {
+    const visitorId = generateVisitorId();
+    const today = new Date().toDateString();
+    const lastVisit = localStorage.getItem('lastVisit_' + visitorId);
+    
+    return lastVisit === today;
+}
+
+function markAsVisited() {
+    const visitorId = generateVisitorId();
+    const today = new Date().toDateString();
+    localStorage.setItem('lastVisit_' + visitorId, today);
+}
+
 async function trackVisitor() {
     try {
+        if (hasTracked) return;
+        
+        if (hasVisitedToday()) return;
+        
         if (!firebaseReady) {
             await loadFirebase();
             firebase.initializeApp(firebaseConfig);
@@ -8607,6 +8643,7 @@ async function trackVisitor() {
             userAgent: navigator.userAgent,
             timestamp: firebase.database.ServerValue.TIMESTAMP,
             sessionId: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            visitorId: generateVisitorId(), // Add unique visitor ID
             screenResolution: `${screen.width}x${screen.height}`,
             viewportSize: `${window.innerWidth}x${window.innerHeight}`,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -8633,10 +8670,12 @@ async function trackVisitor() {
             visitorData.city = 'Unknown';
         }
 
-        firebase.database().ref('visitors').push(visitorData);
+        await firebase.database().ref('visitors').push(visitorData);
+        
+        hasTracked = true;
+        markAsVisited();
 
     } catch (error) {
-
     }
 }
 
@@ -8651,11 +8690,6 @@ function shouldTrack() {
 if (shouldTrack()) {
     setTimeout(trackVisitor, 1000);
     
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            setTimeout(trackVisitor, 500);
-        }
-    });
 }
 
 jQuery.extend( jQuery.event, {
